@@ -1,0 +1,9 @@
+./env.env
+.venv/
+__pycache__/
+*.pyc
+
+data/experience_memory.json
+.env
+
+venv/

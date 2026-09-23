@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Guided Troubleshooting</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="topbar-title">Guided Troubleshooting</div>
+      <div class="topbar-sub" id="apiStatus">checking backend…</div>
+    </header>
+
+    <main class="content">
+      <section class="prompt-card">
+        <h1>What's happening with your Galaxy?</h1>
+        <textarea id="queryInput" rows="3"
+          placeholder="Describe your problem… e.g. &quot;My screen is black and won't turn on&quot;"></textarea>
+
+        <div class="examples" id="examples">
+          <button class="chip" data-q="My Galaxy S22 screen turns completely blank or white and no text appears when I search for a stock price or use the Smart Tutor app, and it happens with other apps too.">Blank white screen</button>
+          <button class="chip" data-q="My Samsung Galaxy Z Flip 6 screen flickers and goes blank whenever I open it, so I can't see anything or access the settings, which stops me from using the phone.">Screen flickers on open</button>
+          <button class="chip" data-q="My Galaxy Z Flip 7 screen went completely black, so I can't see or interact with the phone, and I'm unable to use Smart Switch or any other method to transfer my data.">Screen went black</button>
+          <button class="chip" data-q="My phone smells like burning plastic">Unseen / no-match example</button>
+        </div>
+
+        <button id="submitBtn" class="primary-btn">
+          <span id="submitLabel">Get guided steps</span>
+        </button>
+      </section>
+
+      <section id="resultArea" class="result-area" hidden></section>
+    </main>
+
+    <footer class="footer-note">
+      Calls <code id="apiBaseLabel">your local API</code> directly — no data leaves this device except to that
+      server. Deeplinks (<code>bixby://…</code>) only resolve on an actual Galaxy device.
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

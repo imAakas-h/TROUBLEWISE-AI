@@ -40,14 +40,6 @@ backend is the product; the frontend is a window onto it.
 ## 2. Architecture
 <img width="1835" height="717" alt="image" src="https://github.com/user-attachments/assets/11bab7dc-f5ef-4fb0-939f-d21e6c97f453" />
 
-
-
-```
-
-Full stage-by-stage rationale, including three real bugs found and fixed
-during development, is in `docs/architecture.md` and
-`docs/implementation-plan.md`.
-
 ---
 
 ## 3. How to start the app

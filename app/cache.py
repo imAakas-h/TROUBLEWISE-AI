@@ -1,5 +1,5 @@
 """
-Stage 3: Fast-Path Semantic Cache.
+Stage 3: Fast-Path Canonical Intent Cache.
 
 A small pure-Python TF-IDF/cosine implementation is used here so the project
 does not require NumPy/SciPy/scikit-learn just to run the cache. This is useful
@@ -68,7 +68,12 @@ def _cosine(a: dict[str, float], b: dict[str, float]) -> float:
 
 
 class SemanticCache:
-    def __init__(self, threshold: float = 0.40):
+    """Exact canonical-key cache with optional cosine lookup for other users.
+
+    The engine uses a threshold above 1.0 so uncertain fuzzy matches cannot
+    bypass current-source retrieval and return an unrelated plan.
+    """
+    def __init__(self, threshold: float = 1.01):
         self.threshold = threshold
         self._store: dict[str, dict] = {}
         self._keys: list[str] = []

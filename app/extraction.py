@@ -23,10 +23,9 @@ HEADING_RE = re.compile(r"^(#{2,4})\s*(.+)$", re.MULTILINE)
 URL_RE = re.compile(r"(https?://|www\.)\S+", re.IGNORECASE)
 
 CRITICAL_KEYWORDS = [
-    "factory reset", "factory data reset", "restart", "reboot",
-    "firmware update", "software update", "update software",
-    "update device software", "system update", "safe mode",
-    "reset network settings", "erase all data", "wipe",
+    "factory reset", "factory data reset", "erase all data", "wipe",
+    "clear app data", "clear application data", "reset all settings",
+    "remove all accounts",
 ]
 MANUAL_KEYWORDS = [
     # escalation / physical service
@@ -233,8 +232,12 @@ def extract_goal(content: str, title: str | None = None) -> ExtractedGoal:
             raw_text=content,
         ))
 
-    # Order: auto first, critical next, manual (service-center escalation) last.
-    rank = {"auto": 0, "critical": 1, "manual": 2}
-    actions.sort(key=lambda a: rank.get(a.category, 0))
+    # SIIS heading order is the procedure order. Do not sort categories:
+    # source instructions may intentionally perform a manual check first.
+    # Keep an explicitly destructive step from being the first user action.
+    destructive = re.compile(r"\b(factory (?:data )?reset|erase all data|delete all|wipe|clear app data|clear application data|reset all settings)\b", re.I)
+    if len(actions) > 1 and destructive.search(" ".join(actions[0].step_groups[0].steps)):
+        first = actions.pop(0)
+        actions.insert(1, first)
 
     return ExtractedGoal(topic=topic, goal=goal_str, title=schema_title, actions=actions)

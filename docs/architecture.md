@@ -1,5 +1,13 @@
 # Architecture
 
+> **Audit update (2026-09-27):** The sections below describe the earlier
+> implementation. The current pipeline adds automatic SIIS retrieval,
+> grounded-plan validation, catalog-only deeplinks, canonical exact cache
+> behavior, and source-grounded diagnostic probes. See
+> [repository-audit.md](repository-audit.md) and
+> [input-evaluation.md](input-evaluation.md) for current behavior and measured
+> results.
+
 ## Pipeline
 
 ```

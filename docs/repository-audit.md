@@ -1,0 +1,29 @@
+# Repository Audit and Implementation Checklist
+
+Audit scope: the complete tracked project tree (`app/`, `data/`, `docs/`, `frontend/`, `tests/`, requirements, env example, README, and git ignore rules). The user's Downloads path was inaccessible in this execution environment. The four reference data assets are present in `data/`; `data/schema.py` and `app/schema.py` compare byte-for-byte equal. The referenced PDF itself is not present in the repository, so this audit used the supplied schema/sample/data and existing written spec.
+
+| Feature | Exists | Partial | Missing | Broken at audit start | Evidence | Action |
+|---|---:|---:|---:|---:|---|---|
+| API entrypoint/routes | Yes |  |  |  | `app/main.py`: `/health`, `/v1/troubleshoot`, `/v1/guidance`, `/v1/feedback` | Kept public routes; verified live `/health` and troubleshoot requests. |
+| SIIS ingestion | Yes |  |  | Retrieval absent | `load_engine()` loaded SIIS only for seed-cache warming; request without `siis_response` returned empty contexts. | Added startup index and automatic query retrieval. |
+| SIIS retrieval |  |  | Yes |  | No query-time SIIS retriever existed. | Added BM25 + normalized lexical/topic overlap, trigger matching, typo correction, and conservative no-match. |
+| Structured extraction | Yes |  |  |  | `app/extraction.py` split source text at Markdown headings and sentences. | Preserved source order and added a first-action destructive guard; no generated troubleshooting steps. |
+| Grounding validation |  |  | Yes |  | No post-generation source-span/deeplink validator existed. | Added exact source-excerpt checks and catalog/validation metadata integrity checks. |
+| Deeplink matching | Yes |  |  |  | `app/deeplink_matcher.py` matched metadata but used an undeclared scikit-learn dependency. | Removed scikit-learn; kept BM25 + local TF-IDF; exclude catalog's dummy placeholder URI. |
+| Validation deeplink mapping |  | Yes |  |  | Builder copied only validation URI and key, dropping enum/value metadata. | Copies `key`, `resultType`, `condition`, and `value`; validator checks catalog values. |
+| Action ordering/safety |  | Yes |  |  | Extractor sorted all actions by category, which could override SIIS order; restart was treated as critical. | Preserve SIIS order; reserve critical for destructive operations and avoid putting a destructive action first. |
+| Intent cache | Yes |  |  | Risky fuzzy hits possible | In-memory exact + TF-IDF cache could return a semantically unrelated plan; context was not part of lookup. | Use stable canonical exact keys, bypass cache for explicit SIIS context, cache only schema/grounding-valid output. Fuzzy cache remains available in the class but disabled by engine threshold. |
+| LLM and prompts | Yes |  |  | Extra optional calls in core | Groq integration was used by enrichment/description generation; prompts live inline in `app/llm_enhancer.py`. | Removed Groq from the core plan path; retained optional `/v1/guidance`. No LLM required for troubleshooting. |
+| Schema validation | Yes |  |  |  | `app/schema.py` Pydantic v2 models and matching `data/schema.py`. | Public schema unchanged; validate before response and in automated tests. |
+| No-match behavior | Yes |  |  | Incomplete without query-time retrieval | Empty `contexts` fallback was used only when no external SIIS was passed. | Use empty `contexts` plus `fallback: no_match` where no relevant source clears the threshold. |
+| Tests/evaluation | Partial |  |  | Dependency missing | Only `tests/run_benchmark.py`; initial run failed importing missing `rank_bm25` in the system interpreter. | Added `tests/test_engine.py` and `tests/evaluate_inputs.py`; installed declared requirements into ignored project `.venv` and ran both. |
+| Frontend | Yes |  |  | Stale no-context copy | Static HTML/CSS/JS in `frontend/`; calls the API without explicit SIIS text. | API now retrieves automatically; frontend error copy should describe an unavailable grounded match. |
+| Configuration | Yes |  |  |  | `.env.example` configures optional Groq; dependencies in `requirements.txt`. | Core path is credential-free; tested with no Groq key. |
+| Docker/deployment |  |  | Yes |  | No Dockerfile, compose, Procfile, CI, or package/test config present. | No deployment files added; local Uvicorn API tested. |
+| Adaptive diagnostic probe |  |  | Yes |  | No diagnostic state/action selector existed. | Added deterministic, source-only probe selection for short ambiguous queries and close, distinct SIIS candidates; duplicate article rows are collapsed. Internal metadata records candidate sources and a heuristic branch-separation score. |
+
+## Initial end-to-end trace
+
+The pre-change engine did query enrichment → cache lookup → (only when request text supplied `siis_response`) heading extraction → deeplink matching → Pydantic assembly. With a normal query and no supplied SIIS text it returned `contexts: []`; it performed no retrieval. A valid exact cache hit could bypass newly supplied SIIS context. The matcher returned the catalog's reserved-looking `bixby://dummy_positive` URI in its fallback branch, and the response builder generated its associated description. Validation metadata was incomplete. Category sorting could reorder source procedure steps. The first benchmark run also failed because the system interpreter had no `rank_bm25`; the deeplink matcher additionally imported `sklearn`, which was absent from `requirements.txt`.
+
+The updated endpoint was then exercised against retrieval, explicit SIIS context, a no-match query, and a probe query. The complete 20-query run and per-query evidence are in [input-evaluation.md](input-evaluation.md). Current tests are in [test_engine.py](../tests/test_engine.py); executable full-input evaluation is [evaluate_inputs.py](../tests/evaluate_inputs.py).

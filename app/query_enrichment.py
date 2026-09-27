@@ -28,7 +28,7 @@ DEVICE_PATTERN = re.compile(
 )
 
 FILLER_PATTERN = re.compile(
-    r"\b(my|the|i|i'm|im|so|and|please|just|also|really|very|kinda|literally)\b",
+    r"\b(my|the|i|i'm|im|so|and|on|please|just|also|really|very|kinda|literally|phone|tablet|device|keeps|keep|going|goes|turns|turned|suddenly)\b",
     re.IGNORECASE,
 )
 
@@ -41,6 +41,23 @@ class EnrichedQuery:
     canonical: str
     device_context: str | None
     variations: list[str] = field(default_factory=list)
+    entities: dict[str, list[str]] = field(default_factory=dict)
+
+
+_ENTITY_PATTERNS = {
+    "application": r"\b(gmail|smart switch|smart tutor|camera|bixby|whatsapp|youtube)\b",
+    "trigger": r"\b(when I [^,.!?]{2,50}|whenever [^,.!?]{2,50}|while charging|after [^,.!?]{2,50})",
+    "frequency": r"\b(always|constantly|intermittently|sometimes|repeatedly|keeps?\b|every time)\b",
+    "timing": r"\b(after [^,.!?]{2,50}|for [0-9]+ (?:seconds?|minutes?|hours?|days?))",
+    "severity": r"\b(completely|cannot|can't|unable|unusable|stopped working|won't work)\b",
+    "attempted_actions": r"\b(tried? [^,.!?]{2,60}|after I [^,.!?]{2,60})",
+    "context": r"\b(inner screen|outer screen|cover screen|fold|qr code|activation|transfer|touch)\b",
+}
+
+
+def extract_entities(text: str) -> dict[str, list[str]]:
+    return {name: [m.group(0).strip() for m in re.finditer(pattern, text, re.I)]
+            for name, pattern in _ENTITY_PATTERNS.items() if re.search(pattern, text, re.I)}
 
 
 def _strip_device(text: str) -> tuple[str, str | None]:
@@ -68,6 +85,7 @@ _CONTRACTIONS = [
 # honest workaround for not having a real embedding model available in this
 # sandbox -- see cache.py docstring for the production upgrade path.
 _CANONICAL_SYNONYMS = [
+    (r"\bdisplay\b", "screen"),
     (r"\bdark\b", "black"),
     (r"\bblank\b", "black"),
     (r"\bunresponsive\b", "not responding"),
@@ -89,7 +107,10 @@ def canonicalize(text: str) -> str:
     # Drop leading list markers like "1." or "2)" that appear in input.txt
     text = re.sub(r"^\s*\d+[\.\)]\s*", "", text)
     text = text.replace('"', "").strip()
-    cleaned, _device = _strip_device(text)
+    # Keep product/model, app, trigger, and timing entities in the key. A
+    # foldable-only symptom or charger-triggered symptom must not collide
+    # with a generic screen complaint.
+    cleaned = text
     cleaned = cleaned.lower()
     for pat, repl in _CONTRACTIONS:
         cleaned = re.sub(pat, repl, cleaned)
@@ -154,20 +175,8 @@ def enrich_query(raw_text: str) -> EnrichedQuery:
     canonical = canonicalize(raw_text)
     _, device = _strip_device(raw_text)
 
-    # Optional AI-agent upgrade: if GROQ_API_KEY is set, ask Groq for richer
-    # paraphrases than the template swaps below can produce. Falls back to
-    # the deterministic template on any failure (see llm_enhancer.py) --
-    # this call can never break query enrichment, only enrich it further.
-    from app import llm_enhancer
-    if llm_enhancer.is_available():
-        llm_variations = llm_enhancer.generate_paraphrases(canonical)
-        if llm_variations:
-            return EnrichedQuery(
-                raw=raw_text, canonical=canonical, device_context=device,
-                variations=llm_variations,
-            )
-
     variations = _template_variations(canonical)
     return EnrichedQuery(
-        raw=raw_text, canonical=canonical, device_context=device, variations=variations
+        raw=raw_text, canonical=canonical, device_context=device, variations=variations,
+        entities=extract_entities(raw_text),
     )

@@ -1,5 +1,11 @@
 # Implementation Plan & Status
 
+> **Historical implementation log:** this file records an earlier build and
+> contains superseded current-status claims. The 2026-09-27 repository audit,
+> code changes, tests, and supplied-input run are documented in
+> [repository-audit.md](repository-audit.md) and
+> [input-evaluation.md](input-evaluation.md).
+
 ## G. What should NOT be built
 
 - An Android/Kotlin mobile app (not in the graded rubric — see specification.md)

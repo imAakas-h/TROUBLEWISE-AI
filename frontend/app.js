@@ -57,9 +57,9 @@ function renderError(message) {
 }
 
 function renderEmpty(fallback) {
-  const reason = fallback === "no_siis_context"
-    ? "This description doesn't match anything in the pre-loaded reference data yet, and no siis_response was supplied for a fresh lookup. Try one of the sample scenarios above — those are backed by real Samsung reference text."
-    : "No troubleshooting steps could be grounded in the supplied reference text for this query.";
+  const reason = fallback === "invalid_or_empty_query"
+    ? "Enter a short description of the problem to search the supplied Samsung reference data."
+    : "No reliable match was found in the supplied Samsung reference data, so the engine did not guess at a solution.";
   els.result.hidden = false;
   els.result.innerHTML = `
     <div class="state-block">

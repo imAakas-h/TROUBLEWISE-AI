@@ -7,9 +7,7 @@ An intelligent REST API that transforms vague Galaxy device complaints into prec
 ```
 Input:  "My Galaxy Z Flip 6 screen flickers and goes blank"
 
-Output: 1. Check charging cable and adapter    [Open Settings ⚡]
-        2. Restart device in Safe Mode         [Open Settings ⚡]
-        3. Contact Samsung Support             (Manual step)
+Output: 1. Inspect for physical damage         (SIIS-grounded diagnostic check)
 ```
 
 ---
@@ -56,37 +54,28 @@ backend is the product; the frontend is a window onto it.
                                  ▼
                     app/pipeline.py (orchestrator)
                                  │
-        ┌────────────────────────┼─────────────────────────┐
-        ▼                        ▼                          ▼
-[0] query_enrichment.py   [Cache] cache.py          [Optional AI layer]
- canonicalize + expand     exact dict hit, then       app/llm_enhancer.py
- contractions/synonyms     pure-Python TF-IDF cosine for          → Groq free API,
-                           near-duplicates             gated by GROQ_API_KEY,
-        │ (cache miss)                                 used for richer
-        ▼                                              paraphrases + polished
-[1] extraction.py                                      descriptions.
- segment SIIS text on                                   Every output is
- headings → Goal/Action/                                still validated
- StepGroup; classify                                    against the schema
- auto/critical/manual by                                afterward — an LLM
- keyword cue                                            is never trusted
-        │                                               blindly (see §6).
         ▼
-[2] deeplink_matcher.py
- hybrid BM25 + TF-IDF over
- deeplinks.json metadata,
- hard overlap gate against
- false positives
-        │
+[0] query_enrichment.py → cache.py
+ canonicalize wording; preserve product/trigger context;
+ exact canonical cache key (no uncertain fuzzy hits)
+        │ miss
         ▼
-[response_builder.py]
- assembles schema.Goal,
- enforces every word-count/
- prefix/category rule in
- code (not left to a prompt)
-        │
+[1] retrieval.py
+ BM25 + weighted lexical/topic signals over SIIS query,
+ title and procedure headings; typo correction; safe no-match
+        │ ambiguous candidates
+        ├────────────── diagnostics.py selects one safe
+        │               source-authored observation/check
         ▼
- schema-validated JSON + {latency_ms, cache_hit, model, cost_usd}
+[2] extraction.py → grounding.py
+ segment SIIS into Goal/Action/StepGroup; verify every
+ emitted step is an excerpt from the retrieved source
+        ▼
+[3] deeplink_matcher.py → response_builder.py
+ BM25 + local TF-IDF over catalog metadata; copy exact
+ catalog URI, preserve validation metadata, validate schema
+        ▼
+ JSON response + cache/latency metadata
 ```
 
 Full stage-by-stage rationale, including three real bugs found and fixed
@@ -287,11 +276,12 @@ check that both servers are running and the API_BASE URL in `frontend/app.js` ma
 |---|---|---|
 | API framework | FastAPI + Pydantic v2 | matches `schema.py` exactly; free interactive docs (`/docs`) doubles as a demo UI |
 | Server | Uvicorn | standard FastAPI ASGI server |
-| Lexical retrieval | `rank_bm25` | fast, dependency-light BM25 over the deeplink catalog |
-| Semantic-ish retrieval | pure-Python TF-IDF + cosine similarity | no internet-hosted embedding model was reachable from the build sandbox (see §6/architecture.md) — this is the honest stand-in, with the upgrade path documented |
-| Optional AI agent | Groq API (`llama-3.1-8b-instant`, free tier, OpenAI-compatible endpoint) | fastest genuinely-free LLM inference available as of this build (no credit card, generous rate limit) — see `app/llm_enhancer.py` |
+| Retrieval | `rank_bm25` + weighted lexical/topic overlap | lightweight retrieval over SIIS text and deeplink metadata |
+| Deeplink ranking | BM25 + local TF-IDF | no hosted embedding or LLM required |
+| Fast path | canonical exact-key in-memory cache | avoids unsafe fuzzy cache matches; common wording variants normalize together |
+| Optional AI agent | Groq for separate `/v1/guidance` only | not used to create the grounded troubleshooting plan |
 | Frontend | Vanilla HTML/CSS/JS, no framework, no build step | zero install friction for a demo; mobile-first responsive CSS |
-| Testing | Custom benchmark harness (`tests/run_benchmark.py`) | schema/rule compliance, URL-leak checks, latency, cache behavior, unseen-scenario generalization |
+| Testing | `unittest`, benchmark, supplied-input evaluator | schema, grounding, catalog integrity, cache behavior, latency, supplied-query review |
 
 No database, no queue, no container orchestration — not justified at this
 scale and not requested by the spec.
@@ -305,32 +295,21 @@ same schema. Describing "a RAG pipeline that maps complaints to deeplinks"
 isn't a differentiator — it's the assignment. What we think actually holds
 up under judge questioning:
 
-1. **Zero-hallucination by construction, not by prompting.** There is no LLM
-   in the extraction or matching path by default — steps are segmented
-   directly from the supplied SIIS text, and deeplinks are either a verbatim
-   catalog copy or withheld. There's no "hope the model followed the
-   instruction" step to interrogate.
+1. **Grounding is checked in code.** Steps are segmented from SIIS text and
+   verified as source excerpts. Deeplinks must be exact catalog entries;
+   the catalog's dummy placeholder is excluded.
 2. **A wrong deeplink is worse than no deeplink, and the code reflects that
    priority.** The classifier defaults to `manual` (no deeplink) whenever
    there's no clear settings/software cue in the text, specifically to avoid
    confidently pointing someone at the wrong screen. Most quick
    implementations optimize for coverage (more matches = flashier demo); we
    optimized for not being wrong, and can show the reasoning.
-3. **Every number in this README is re-runnable, including the one honest
-   shortfall.** `python -m tests.run_benchmark` regenerates every metric
-   live. Our measured cross-phrasing cache-hit rate is 11% against an 80%
-   target (see `docs/evaluator-analysis.md`) — we found the wrong-topic
-   false-positive that a looser threshold would have caused, rejected that
-   threshold, and documented why. A team that hasn't measured this at all,
-   or picked whatever threshold flatters their demo query, has a weaker
-   story in Q&A, not a stronger one.
-4. **The AI-agent layer is additive, not load-bearing.** Groq is wired in
-   for paraphrase generation and description polish, but every one of its
-   outputs is re-validated against the schema before use, and the core
-   pipeline is fully functional and fully tested with zero API keys and
-   zero external network calls. Judges can watch the deterministic
-   fast-path answer a seed query in the terminal without you needing
-   internet access at all.
+3. **Probe before a long checklist.** Ambiguous queries can return one
+   source-authored observation first. See `docs/differentiator-research.md`
+   and the query-by-query results in `docs/input-evaluation.md`.
+4. **No LLM call in the plan path.** The core endpoint is deterministic
+   and works without a model credential. Groq remains optional for the
+   separate `/v1/guidance` route.
 5. **Named, fixed bugs with before/after evidence**, not just a clean final
    state — e.g. a keyword-matching bug where `"wipe"` matched inside
    `"Swipe"` and misclassified a normal gesture as a factory reset; a
@@ -343,23 +322,17 @@ We can't promise judges will agree these matter most — that's genuinely
 outside anyone's control. What we can promise is that every claim above is
 backed by a command you can run in front of them.
 
-## 7. Market gap
+## 7. Industry pattern and differentiator
 
-Samsung already ships **Smart Tutor** — a real, live remote-diagnostic app
-where a human support agent takes control of your device to fix it (this is
-public information, confirmed via Samsung's own support documentation, not
-invented for this pitch). That's the high-touch end of the spectrum: fast
-once connected, but it needs a human agent and a live session every time.
-
-The gap this engine targets sits *before* that: most complaints ("screen
-flickers," "battery drains fast") don't need a human in the loop at all —
-they need the right three steps and the right Settings screen, instantly,
-without waiting for an agent. An automated, deeplink-precise triage layer
-in front of Smart Tutor could resolve the simple cases immediately and
-escalate only the genuinely hard ones — which is a real, if unquantified
-(we don't have Samsung's internal support-volume numbers, and won't
-pretend to), efficiency gap between "search the web and guess" and "wait for
-a live agent."
+ServiceNow documents a troubleshooting agent that gathers case context,
+finds missing context from related cases and knowledge, then proposes
+additional steps. Microsoft Dynamics documents intent-based questions and
+case next-best-actions. This project's narrower distinction is selecting a
+safe, already-authored SIIS check when a complaint is underspecified or
+retrieved procedures compete, then
+verifying the returned step and any deeplink against the supplied assets.
+Research sources and limitations are in
+[`docs/differentiator-research.md`](docs/differentiator-research.md).
 
 ---
 
@@ -369,19 +342,24 @@ a live agent."
 app/
   main.py                FastAPI app: POST /v1/troubleshoot, GET /health, CORS
   pipeline.py             orchestrates every stage below
-  query_enrichment.py      Stage 0 — canonicalize + paraphrase variations
+  query_enrichment.py      Stage 0 — canonicalize + retain entities
+  retrieval.py              SIIS BM25/topic retrieval and relevance gates
   extraction.py            Stage 1 — SIIS text -> Goal/Action/StepGroup
-  deeplink_matcher.py      Stage 2 — hybrid BM25 + TF-IDF retrieval
-  response_builder.py      assembles + validates the final schema.Goal
-  cache.py                 Stage 3 — exact + semantic fast-path cache
-  llm_enhancer.py           optional Groq AI-agent layer (see §6)
+  grounding.py              source-excerpt and catalog integrity checks
+  diagnostics.py            adaptive source-grounded probe selection
+  deeplink_matcher.py       catalog BM25 + local TF-IDF retrieval
+  response_builder.py       assembles and validates the final schema.Goal
+  cache.py                  exact canonical fast-path cache
+  llm_enhancer.py           optional Groq `/v1/guidance` layer
   schema.py                official Pydantic contract (unmodified)
 frontend/
   index.html / style.css / app.js    optional mobile-first demo client
 tests/
-  run_benchmark.py          offline evaluator-style benchmark harness
+  run_benchmark.py          offline schema/cache/latency benchmark
+  test_engine.py            grounding, retrieval, cache, safety regressions
+  evaluate_inputs.py        all supplied complaints with evidence
 data/                      the supplied kit files, copied in as-is
-docs/                      specification / evaluator-analysis / architecture / implementation-plan
+docs/                      specification, audit, evaluation and research notes
 .env.example               copy to .env for the optional Groq key
 requirements.txt
 ```

@@ -16,7 +16,6 @@ from app.extraction import ExtractedGoal
 from app.deeplink_matcher import DeeplinkMatcher, MatchResult
 
 URL_RE = re.compile(r"(https?://|www\.)\S+", re.IGNORECASE)
-FILLERS = ["for you", "safely", "quickly", "right now", "on your device"]
 
 
 def _scrub_urls(text: str) -> str:
@@ -34,34 +33,8 @@ def _title_case_topic(words: list[str]) -> str:
 
 
 def build_description(action_name: str) -> str:
-    """Exactly 5-7 words, starting with 'It will'.
-
-    Tries the optional Groq-based polish first (see llm_enhancer.py) for
-    more natural phrasing; ALWAYS validated against the same 5-7-word /
-    'It will' rule before use, and falls back to the deterministic template
-    below if Groq is unavailable or returns something non-compliant. The
-    schema constraint is enforced here regardless of which path produced
-    the text -- an LLM is never trusted to have followed the instruction
-    correctly on its own.
-    """
-    from app import llm_enhancer
-    if llm_enhancer.is_available():
-        polished = llm_enhancer.polish_description(action_name, category="auto")
-        if polished:
-            words = polished.split()
-            if 5 <= len(words) <= 7 and polished.lower().startswith("it will"):
-                return polished
-
-    tail = re.sub(r"[^a-zA-Z\s]", "", action_name).lower().split()
-    combined = ["It", "will", "help", "fix"] + tail
-    if len(combined) > 7:
-        combined = combined[:7]
-    i = 0
-    fillers_flat = " ".join(FILLERS).split()
-    while len(combined) < 5 and i < len(fillers_flat):
-        combined.append(fillers_flat[i])
-        i += 1
-    return " ".join(combined)
+    """Schema-compatible neutral copy; the SIIS instruction stays in steps."""
+    return "It will guide you through this step"
 
 
 CATEGORY_MAP = {
@@ -115,21 +88,13 @@ def build_goal(extracted: ExtractedGoal, matcher: DeeplinkMatcher) -> tuple[Goal
                     deeplink=entry["deeplink"],
                     description=entry.get("description", ""),
                     message=entry.get("message", ""),
+                    classes=entry.get("classes"),
                     originalType=entry.get("originalType"),
                 )
                 val = entry.get("validation")
                 if val and val.get("deeplink") and val.get("key"):
-                    validation = ValidationDeepLink(
-                        deeplink=val["deeplink"], key=val["key"],
-                    )
-            elif result.used_fallback:
-                screen_name = ea.action_name
-                actionable = Deeplink(
-                    deeplink="bixby://dummy_positive",
-                    description=f"Opens the {screen_name.lower()} settings screen on the device.",
-                    message=f"Open {screen_name} Settings",
-                    originalType="placeholder",
-                )
+                    metadata = {key: val.get(key) for key in ("key", "resultType", "condition", "value")}
+                    validation = ValidationDeepLink(deeplink=val["deeplink"], **metadata)
 
         stepgroup = StepGroup(
             steps=clean_steps,

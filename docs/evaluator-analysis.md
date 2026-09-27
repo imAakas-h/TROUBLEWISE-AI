@@ -1,5 +1,11 @@
 # Evaluator Analysis — Measured Against This Build
 
+> **Historical benchmark:** the numbers below predate the 2026-09-27 audit
+> and are retained as baseline history. They describe the old TF-IDF cache,
+> previous deeplink matcher, and old thresholds. Current numbers are produced
+> by `python -m tests.run_benchmark`; all supplied-query outcomes are in
+> [input-evaluation.md](input-evaluation.md).
+
 Numbers below are from `tests/run_benchmark.py`, re-run at any time; nothing
 here is estimated or aspirational.
 

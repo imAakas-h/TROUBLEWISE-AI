@@ -1,7 +1,9 @@
 """Contract, grounding, cache, retrieval, and safety regression tests."""
 import json
+import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from app.extraction import extract_goal, ExtractedGoal, ExtractedAction, ExtractedStepGroup
 from app.grounding import GroundingError, validate_grounding
@@ -9,6 +11,7 @@ from app.pipeline import TroubleshootingEngine
 from app.query_enrichment import enrich_query
 from app.retrieval import SiisRetriever
 from app.deeplink_matcher import MatchResult
+from app.main import FeedbackRequest, feedback
 from app.response_builder import build_goal
 from app.schema import ContextDeeplinkResponse
 
@@ -145,6 +148,19 @@ class EngineTests(unittest.TestCase):
         self.assertTrue(meta["hypotheses"])
         self.assertEqual(len(result["response"]["contexts"][0]["actions"]), 1)
         self.assertIn(meta["probe_text"], self.siis[1]["siis_response"]["content"])
+
+    def test_feedback_endpoint_returns_stored_experience(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            memory_file = Path(tmp) / "experiences.json"
+            with patch("app.experience_memory.MEMORY_FILE", memory_file):
+                response = feedback(FeedbackRequest(
+                    query="screen is black", outcome="not_solved",
+                    action_name="Force a restart", note="still black",
+                ))
+            payload = json.loads(response.body)
+            self.assertEqual(payload["status"], "stored")
+            self.assertEqual(payload["outcome"], "not_solved")
+            self.assertEqual(payload["experience_memory_size"], 1)
 
 
 if __name__ == "__main__":

@@ -51,15 +51,17 @@ def _similarity(a, b):
 def record_experience(query, outcome, action_name="", note=""):
     records = _load()
 
-    records.append({
+    item = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "query": query,
         "outcome": outcome,
         "action_name": action_name,
         "note": note,
-    })
+    }
+    records.append(item)
 
     _save(records)
+    return item
 
 
 def find_relevant_experiences(query, limit=3):

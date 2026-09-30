@@ -38,49 +38,7 @@ backend is the product; the frontend is a window onto it.
 ---
 
 ## 2. Architecture
-
-```
-                        ┌─────────────────────────┐
-                        │   frontend/ (optional)   │
-                        │  mobile-first static     │
-                        │  HTML/CSS/JS, no build    │
-                        └────────────┬─────────────┘
-                                     │ fetch() — CORS-enabled
-                                     ▼
-┌───────────────────────────────────────────────────────────────────┐
-│                    app/main.py — FastAPI (the graded API)          │
-│                 POST /v1/troubleshoot        GET /health           │
-└───────────────────────────────┬─────────────────────────────────────┘
-                                 ▼
-                    app/pipeline.py (orchestrator)
-                                 │
-        ▼
-[0] query_enrichment.py → cache.py
- canonicalize wording; preserve product/trigger context;
- exact canonical cache key (no uncertain fuzzy hits)
-        │ miss
-        ▼
-[1] retrieval.py
- BM25 + weighted lexical/topic signals over SIIS query,
- title and procedure headings; typo correction; safe no-match
-        │ ambiguous candidates
-        ├────────────── diagnostics.py selects one safe
-        │               source-authored observation/check
-        ▼
-[2] extraction.py → grounding.py
- segment SIIS into Goal/Action/StepGroup; verify every
- emitted step is an excerpt from the retrieved source
-        ▼
-[3] deeplink_matcher.py → response_builder.py
- BM25 + local TF-IDF over catalog metadata; copy exact
- catalog URI, preserve validation metadata, validate schema
-        ▼
- JSON response + cache/latency metadata
-```
-
-Full stage-by-stage rationale, including three real bugs found and fixed
-during development, is in `docs/architecture.md` and
-`docs/implementation-plan.md`.
+<img width="1835" height="717" alt="image" src="https://github.com/user-attachments/assets/11bab7dc-f5ef-4fb0-939f-d21e6c97f453" />
 
 ---
 

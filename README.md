@@ -12,6 +12,17 @@ Output: 1. Inspect for physical damage         (SIIS-grounded diagnostic check)
 
 ---
 
+---
+
+## Submission Links
+
+- **Demo Video:** [Watch the Demo Video](https://drive.google.com/file/d/1l9v6KPA7RoTcdm5nBBgkUKpcvDj8vmtR/view?usp=drivesdk)
+- **GitHub Repository:** [TROUBLEWISE-AI](https://github.com/imAakas-h/TROUBLEWISE-AI)
+- **LangAI Disclosure:** [View LangAI Disclosure](https://docs.google.com/document/d/1PJjLEDijBzu7WrAmaPgfZ_6kCTvPw1qo/edit?usp=sharing&ouid=109958161132401601635&rtpof=true&sd=true)
+- **Project Presentation (PPT):** [View Project PPT](https://docs.google.com/presentation/d/1KtKtnka7ey77G1NitjzhW-aVyuDYVvv7/edit?usp=sharing&ouid=109958161132401601635&rtpof=true&sd=true)
+
+---
+
 ## Quick Navigation
 
 - [How to Start the App](#3-how-to-start-the-app) ⚡ **Start here!**
@@ -19,7 +30,6 @@ Output: 1. Inspect for physical damage         (SIIS-grounded diagnostic check)
 - [Architecture](#2-architecture)
 - [Tech Stack](#4-tech-stack)
 - [Key Features & Differentiators](#5-usp--whats-actually-different-here)
-
 ---
 
 ## 1. What this actually is
